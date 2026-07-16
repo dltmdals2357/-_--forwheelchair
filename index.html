@@ -2,26 +2,30 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>휠체어 접근성 3D 시뮬레이션</title>
+    <title>휠체어 접근성 3D 시뮬레이션 - 실내 지하철역</title>
     <style>
-        body { margin: 0; overflow: hidden; background-color: #87CEEB; }
+        body { margin: 0; overflow: hidden; background-color: #111; }
         #ui-layer {
             position: absolute; top: 10px; left: 10px;
             color: white; font-family: sans-serif; pointer-events: none;
-            background: rgba(0,0,0,0.7); padding: 15px; border-radius: 8px; z-index: 10;
+            background: rgba(0,0,0,0.8); padding: 15px; border-radius: 8px; z-index: 10;
+        }
+        #ui-layer h3 {
+            margin-top: 0; margin-bottom: 15px;
+            color: #ffcc00; font-size: 1.1em;
+            border-bottom: 1px solid #555; padding-bottom: 10px;
         }
         #start-screen {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.8); color: white; display: flex;
+            background: rgba(0,0,0,0.9); color: white; display: flex;
             flex-direction: column; justify-content: center; align-items: center;
             font-family: sans-serif; cursor: pointer; z-index: 20;
         }
         #crosshair {
             position: absolute; top: 50%; left: 50%;
-            width: 6px; height: 6px; background: white; border-radius: 50%;
+            width: 6px; height: 6px; background: rgba(255,255,255,0.7); border-radius: 50%;
             transform: translate(-50%, -50%); pointer-events: none; z-index: 15;
         }
-        /* 동적 상태 알림 UI */
         #lock-indicator {
             display: none;
             position: absolute; bottom: 40px; left: 50%;
@@ -41,18 +45,19 @@
 </head>
 <body>
     <div id="start-screen">
-        <h2>휠체어 안전 잠금장치 시뮬레이션</h2>
-        <p>화면을 클릭하여 시작하세요 (오디오 활성화).</p>
-        <p style="font-size: 0.9em; color: #ccc;">종료하려면 ESC 키를 누르세요.</p>
+        <h2>지하철역 휠체어 리프트/경사로 시뮬레이션</h2>
+        <p>화면을 클릭하여 역내로 진입하세요 (오디오 활성화).</p>
+        <p style="font-size: 0.9em; color: #888;">종료하려면 ESC 키를 누르세요.</p>
     </div>
     
     <div id="ui-layer">
+        <h3>🚇 실내 지하철역 휠체어 시뮬레이션</h3>
         <p><b>W, A, S, D:</b> 이동</p>
         <p><b>마우스:</b> 시점 회전</p>
         <p><b>Space Bar:</b> 🔓 잠금장치 해제 (미끄러져 내려가기)</p>
         <hr style="border-color: #555;">
-        <p><b>우측 경사로 (파랑):</b> 오르막 (안전락 작동)</p>
-        <p><b>좌측 경사로 (주황):</b> 내리막 (안전락 작동)</p>
+        <p><b>우측 경사로 (진회색):</b> 오르막 (안전락 작동)</p>
+        <p><b>좌측 경사로 (진회색):</b> 내리막 (안전락 작동)</p>
     </div>
     
     <div id="crosshair"></div>
@@ -61,7 +66,8 @@
     <script>
         // 1. Scene & Camera Setup
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x87CEEB);
+        scene.background = new THREE.Color(0x111111);
+        scene.fog = new THREE.Fog(0x111111, 5, 25);
         
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
         camera.position.set(0, 1.2, 5);
@@ -69,47 +75,130 @@
 
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         document.body.appendChild(renderer.domElement);
 
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        // 2. 지하철역 실내 조명 세팅
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.3);
         scene.add(ambientLight);
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.6);
-        directionalLight.position.set(10, 20, 10);
-        scene.add(directionalLight);
+        
+        const lightZPositions = [5, 0, -5, -10];
+        lightZPositions.forEach((z) => {
+            const pointLight = new THREE.PointLight(0xfffae6, 0.6, 15);
+            pointLight.position.set(0, 4.5, z);
+            pointLight.castShadow = true;
+            scene.add(pointLight);
 
-        // 2. 맵 환경 구성
-        const matGround = new THREE.MeshLambertMaterial({ color: 0x555555 });
-        const matStair = new THREE.MeshLambertMaterial({ color: 0x888888 });
-        const matRampUp = new THREE.MeshLambertMaterial({ color: 0x2196F3 }); 
-        const matRampDown = new THREE.MeshLambertMaterial({ color: 0xFF9800 }); 
+            const lampGeo = new THREE.BoxGeometry(2, 0.05, 0.3);
+            const lampMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+            const lamp = new THREE.Mesh(lampGeo, lampMat);
+            lamp.position.set(0, 4.9, z);
+            scene.add(lamp);
+        });
 
+        // 3. 현실적인 무채색/질감 마테리얼 설정
+        const matGround = new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.9 });
+        const matStair = new THREE.MeshStandardMaterial({ color: 0x555555, roughness: 0.9 });
+        const matRamp = new THREE.MeshStandardMaterial({ color: 0x6a6a6a, roughness: 1.0 }); 
+        
+        const matWall = new THREE.MeshStandardMaterial({ color: 0xd9d9d9, roughness: 0.8 });
+        const matCeiling = new THREE.MeshStandardMaterial({ color: 0xbbbbbb, roughness: 1.0 });
+        const matRail = new THREE.MeshStandardMaterial({ color: 0xcccccc, metalness: 0.7, roughness: 0.3 });
+
+        // 바닥 평지
         const ground = new THREE.Mesh(new THREE.BoxGeometry(20, 0.1, 20), matGround);
-        ground.position.y = -0.05;
+        ground.position.set(0, -0.05, 5);
+        ground.receiveShadow = true;
         scene.add(ground);
 
-        const topGround = new THREE.Mesh(new THREE.BoxGeometry(20, 0.1, 10), matGround);
-        topGround.position.set(0, 2, -10);
+        const topGround = new THREE.Mesh(new THREE.BoxGeometry(20, 0.1, 20), matGround);
+        topGround.position.set(0, 2, -15);
+        topGround.receiveShadow = true;
         scene.add(topGround);
 
+        // 중앙 계단
         for(let i=0; i<4; i++) {
             const step = new THREE.Mesh(new THREE.BoxGeometry(4, 0.5, 1.25), matStair);
             step.position.set(0, 0.25 + (i * 0.5), -1.25 - (i * 1.25));
+            step.castShadow = true;
+            step.receiveShadow = true;
             scene.add(step);
         }
 
+        // 경사로
         const rampGeo = new THREE.BoxGeometry(2, 5.4, 0.1);
+        const rampAngle = -Math.PI / 2 + Math.atan(2 / 5);
         
-        const leftRamp = new THREE.Mesh(rampGeo, matRampDown);
+        const leftRamp = new THREE.Mesh(rampGeo, matRamp);
         leftRamp.position.set(-3, 1, -3.1);
-        leftRamp.rotation.x = -Math.PI / 2 + Math.atan(2 / 5);
+        leftRamp.rotation.x = rampAngle;
+        leftRamp.receiveShadow = true;
         scene.add(leftRamp);
 
-        const rightRamp = new THREE.Mesh(rampGeo, matRampUp);
+        const rightRamp = new THREE.Mesh(rampGeo, matRamp);
         rightRamp.position.set(3, 1, -3.1);
-        rightRamp.rotation.x = -Math.PI / 2 + Math.atan(2 / 5);
+        rightRamp.rotation.x = rampAngle;
+        rightRamp.receiveShadow = true;
         scene.add(rightRamp);
 
-        // 3. Pointer Lock 및 오디오 설정
+        // 4. 실내 공간 구축
+        const wallLeft = new THREE.Mesh(new THREE.BoxGeometry(0.5, 6, 30), matWall);
+        wallLeft.position.set(-4.25, 3, -5);
+        wallLeft.receiveShadow = true;
+        scene.add(wallLeft);
+
+        const wallRight = new THREE.Mesh(new THREE.BoxGeometry(0.5, 6, 30), matWall);
+        wallRight.position.set(4.25, 3, -5);
+        wallRight.receiveShadow = true;
+        scene.add(wallRight);
+
+        const wallBack = new THREE.Mesh(new THREE.BoxGeometry(9, 6, 0.5), matWall);
+        wallBack.position.set(0, 3, 10);
+        scene.add(wallBack);
+
+        const ceiling = new THREE.Mesh(new THREE.BoxGeometry(9, 0.5, 30), matCeiling);
+        ceiling.position.set(0, 5, -5);
+        ceiling.receiveShadow = true;
+        scene.add(ceiling);
+
+        // 5. 안전 손잡이 (Handrails) 설치 - 올바른 각도
+        const slopeAngle = Math.atan(2 / 5); 
+        const railZCenter = -3.1;
+        const railLength = 5.6;
+        const railGeo = new THREE.BoxGeometry(0.08, 0.08, railLength);
+        
+        function createRampRail(x, baseY) {
+            const rail = new THREE.Mesh(railGeo, matRail);
+            rail.position.set(x, baseY + 0.9, railZCenter); 
+            rail.rotation.x = slopeAngle; 
+            rail.castShadow = true;
+            scene.add(rail);
+
+            // 기둥 (Pillars)
+            const pillarGeo = new THREE.CylinderGeometry(0.03, 0.03, 0.9);
+            const zPositions = [-0.8, -3.1, -5.4]; 
+            zPositions.forEach((z) => {
+                const progress = Math.abs((z + 0.6) / 5);
+                const surfaceY = progress * 2; 
+                const pillar = new THREE.Mesh(pillarGeo, matRail);
+                pillar.position.set(x, surfaceY + 0.45, z);
+                pillar.castShadow = true;
+                scene.add(pillar);
+            });
+        }
+
+        // 우측 경사로 손잡이
+        createRampRail(3.9, 1.0);
+        createRampRail(2.1, 1.0);
+        // 좌측 경사로 손잡이
+        createRampRail(-3.9, 1.0);
+        createRampRail(-2.1, 1.0);
+        // 중앙 계단 손잡이
+        createRampRail(1.9, 1.0);
+        createRampRail(-1.9, 1.0);
+
+        // 6. Pointer Lock & Audio Setup
         let pitch = 0; 
         let yaw = 0;   
         let isPointerLocked = false;
@@ -117,15 +206,12 @@
         const startScreen = document.getElementById('start-screen');
         const lockIndicator = document.getElementById('lock-indicator');
 
-        // 정밀한 "찰칵!" 기계식 사운드 합성기
         function playClickSound() {
             if (!audioCtx) return;
             if (audioCtx.state === 'suspended') audioCtx.resume();
-            
             try {
                 const now = audioCtx.currentTime;
                 
-                // 1. 앞의 "찰" 소리 (날카로운 금속 마찰음)
                 const osc1 = audioCtx.createOscillator();
                 const gain1 = audioCtx.createGain();
                 osc1.type = 'sine';
@@ -138,7 +224,6 @@
                 osc1.start(now);
                 osc1.stop(now + 0.04);
 
-                // 2. 뒤의 "칵" 소리 (조금 더 무거운 고정음, 0.04초 딜레이)
                 const osc2 = audioCtx.createOscillator();
                 const gain2 = audioCtx.createGain();
                 const delay = 0.04;
@@ -151,12 +236,9 @@
                 gain2.connect(audioCtx.destination);
                 osc2.start(now + delay);
                 osc2.stop(now + delay + 0.06);
-            } catch(e) {
-                console.error(e);
-            }
+            } catch(e) {}
         }
 
-        // 잠금 해제 시 발생하는 "띠링-" 하는 릴리즈 사운드
         function playUnlockSound() {
             if (!audioCtx) return;
             try {
@@ -177,14 +259,8 @@
 
         startScreen.addEventListener('click', () => {
             startScreen.style.display = 'none';
-            if (!audioCtx) {
-                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            }
-            try {
-                document.body.requestPointerLock();
-            } catch (e) {
-                console.warn("마우스 잠금을 지원하지 않습니다.");
-            }
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            try { document.body.requestPointerLock(); } catch (e) {}
         });
 
         document.addEventListener('pointerlockchange', () => {
@@ -206,7 +282,7 @@
             }
         });
 
-        // 4. 키보드 입력 처리 (Space 추가)
+        // 7. 키보드 및 물리 엔진 로직
         const keys = { w: false, a: false, s: false, d: false, ' ': false };
         document.addEventListener('keydown', (e) => {
             const key = e.key.toLowerCase();
@@ -217,18 +293,15 @@
             if(keys.hasOwnProperty(key)) keys[key] = false;
         });
 
-        // 5. 물리 변수 설정
         const baseSpeed = 0.06;
         const totalSteps = 10; 
         
         let lockTimer = 0;      
         let lastStep = -1;      
-        
-        // 미끄러짐(Sliding) 관련 물리 엔진 변수
         let isSlidingDown = false;
         let slideSpeed = 0;
-        const gravity = 0.004;       // 중력 가속도
-        const maxSlideSpeed = 0.14;  // 최대 미끄러짐 속도
+        const gravity = 0.004;       
+        const maxSlideSpeed = 0.14;  
 
         function animate() {
             requestAnimationFrame(animate);
@@ -237,24 +310,19 @@
             let moveZ = 0;
             let currentSpeed = baseSpeed;
 
-            // [Space 키 감지 - 경사로 위에 있을 때만 작동]
             if (keys[' '] && !isSlidingDown && (camera.position.z < -0.6 && camera.position.z > -5.6)) {
                 isSlidingDown = true;
-                slideSpeed = 0.01; // 초기 미끄러짐 속도
+                slideSpeed = 0.01; 
                 playUnlockSound();
             }
 
-            // *** 미끄러짐 물리 상태 동작 ***
             if (isSlidingDown) {
-                // 경사 아래(Z가 커지는 방향)로 가속도 적용
                 slideSpeed = Math.min(maxSlideSpeed, slideSpeed + gravity);
                 let nextZ = camera.position.z + slideSpeed;
                 
-                // 경사도 진척도 계산 및 시야(Y)의 부드러운 하강 (Stepped가 아닌 원래의 선형 progress 사용)
                 let progress = Math.abs((nextZ + 0.6) / 5);
                 let targetY = 1.2 + (progress * 2);
 
-                // 바닥(z >= -0.6)에 도달하면 슬라이딩 종료 및 리셋
                 if (nextZ >= -0.6) {
                     nextZ = -0.6;
                     targetY = 1.2;
@@ -264,20 +332,19 @@
                 } else {
                     lockIndicator.style.display = 'block';
                     lockIndicator.innerHTML = '🔓 잠금장치 해제! 미끄러지는 중...';
-                    lockIndicator.style.backgroundColor = 'rgba(40, 167, 69, 0.9)'; // 초록색 안전 상태 표시
+                    lockIndicator.style.backgroundColor = 'rgba(40, 167, 69, 0.9)'; 
                 }
 
                 camera.position.z = nextZ;
                 camera.position.y = targetY;
 
             } else {
-                // *** 일반 이동 및 잠금장치 체결 상태 ***
                 if (lockTimer > 0) {
                     currentSpeed = 0; 
                     lockTimer--;
                     lockIndicator.style.display = 'block';
                     lockIndicator.innerHTML = '🔒 안전 고정장치 체결됨 (미끄럼 방지)';
-                    lockIndicator.style.backgroundColor = 'rgba(220, 53, 69, 0.9)'; // 빨간색 잠금 상태 표시
+                    lockIndicator.style.backgroundColor = 'rgba(220, 53, 69, 0.9)'; 
                 } else {
                     lockIndicator.style.display = 'none';
                 }
@@ -293,6 +360,11 @@
                 let nextX = camera.position.x + dir.x;
                 let nextZ = camera.position.z + dir.z;
 
+                if (nextX < -3.8) nextX = -3.8;
+                if (nextX > 3.8) nextX = 3.8;
+                if (nextZ > 9.5) nextZ = 9.5; 
+                if (nextZ < -19.5) nextZ = -19.5; 
+
                 let canMove = true;
                 let targetY = 1.2;
 
@@ -301,17 +373,15 @@
                     let currentStep = Math.floor(progress * totalSteps);
 
                     if (nextX >= 2 && nextX <= 4) {
-                        // [우측 경사로 - 올라가기 전용]
                         if (nextZ > camera.position.z) {
                             canMove = false; 
                         } else {
                             const steppedProgress = Math.floor(progress * totalSteps) / totalSteps;
                             targetY = 1.2 + (steppedProgress * 2);
 
-                            // 한 칸 올라갈 때 "찰칵!" 딜레이 발생
                             if (currentStep !== lastStep) {
                                 if (lastStep !== -1 && currentStep > lastStep) {
-                                    lockTimer = 35; // 약 0.6초 멈춤
+                                    lockTimer = 35; 
                                     playClickSound();
                                 }
                                 lastStep = currentStep;
@@ -319,15 +389,12 @@
                         }
                     } 
                     else if (nextX <= -2 && nextX >= -4) {
-                        // [좌측 경사로 - 내려가기 전용]
                         if (nextZ < camera.position.z) {
                             canMove = false; 
                         } else {
-                            // 내려갈 때도 고정장치가 동일하게 작동 (뚝뚝 끊김)
                             const steppedProgress = Math.floor(progress * totalSteps) / totalSteps;
                             targetY = 1.2 + (steppedProgress * 2);
 
-                            // 한 칸 내려갈 때 "찰칵!" 동일하게 딜레이 발생
                             if (currentStep !== lastStep) {
                                 if (lastStep !== -1 && currentStep < lastStep) {
                                     lockTimer = 35; 
